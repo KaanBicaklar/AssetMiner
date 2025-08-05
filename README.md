@@ -56,3 +56,11 @@ Examples:
   Single domain:     ./recon.py -d example.com
   Domain list:       ./recon.py -l domains.txt
   With options:      ./recon.py -l domains.txt http://127.0.0.1:8080 --with-burp --force-rescan
+```
+---
+## 📄 Disclaimer
+This project is developed for educational purposes only and to assist security professionals in performing authorized security assessments.
+Do not use this tool for illegal activities. Engaging in unauthorized scanning or exploitation may violate local, national, or international laws.
+
+The author assumes no responsibility for any misuse or damage caused by this software.
+By using this tool, you agree that you are solely responsible for your actions and compliance with applicable laws and regulations.
