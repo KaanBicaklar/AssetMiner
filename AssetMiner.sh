@@ -1,16 +1,13 @@
 #!/bin/bash
 
-# Temel hata kontrolü
+
 set -e
 
-# Global değişkenler
-declare -r MAX_TIMEOUT=36000  # 10 saat
+declare -r MAX_TIMEOUT=36000 
 declare -r MAX_RETRIES=3
 declare -r SLEEP_INTERVAL=10
 
-# Argüman parsing fonksiyonu
 parse_arguments() {
-    # Varsayılan değerler
     SINGLE_DOMAIN=""
     DOMAIN_LIST=""
     PROXY=""
@@ -25,7 +22,6 @@ parse_arguments() {
 
     FORCE_RESCAN=false
 
-    # Argümanları parse et
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -100,7 +96,6 @@ parse_arguments() {
         esac
     done
 
-    # Gerekli argümanları kontrol et
     if [[ -z "$SINGLE_DOMAIN" ]] && [[ -z "$DOMAIN_LIST" ]]; then
         echo "Error: Either -d <domain> or -l <domain_list> must be specified"
         show_usage
@@ -112,14 +107,12 @@ parse_arguments() {
         show_usage
         exit 1
     fi        
-    # Proxy kontrolünü güncelle
     if [[ -z "$PROXY" ]] && [[ "$DO_BURP" = true ]]; then
         echo "Error: Proxy argument is required when Burp integration is enabled"
         show_usage
         exit 1
     fi
 
-    # Proxy format kontrolünü güncelle
     if [[ -n "$PROXY" ]]; then
         if ! echo "$PROXY" | grep -qP '^http(s)?://[a-zA-Z0-9.-]+:[0-9]+$'; then
             echo "Error: Invalid proxy format. Should be http(s)://host:port"
@@ -129,7 +122,6 @@ parse_arguments() {
 
 
 
-    # Domain list dosyasının varlığını kontrol et
     if [[ -n "$DOMAIN_LIST" ]] && [[ ! -f "$DOMAIN_LIST" ]]; then
         echo "Error: Domain list file not found: $DOMAIN_LIST"
         exit 1
@@ -138,7 +130,6 @@ parse_arguments() {
     export SINGLE_DOMAIN DOMAIN_LIST PROXY DO_SUBDOMAIN DO_HTTP DO_WAYBACK DO_CRAWL DO_DIRB DO_GF DO_NUCLEI DO_BURP  FORCE_RESCAN
 }
 
-# Kullanım bilgisini gösteren fonksiyon
 show_usage() {
     cat << EOF
 
@@ -179,12 +170,10 @@ Examples:
 EOF
 }
 
-# Gelişmiş cleanup fonksiyonu
 cleanup() {
     local output_dir="$1"
     echo "[*] Performing cleanup..."
     
-    # Geçici dosyaları temizle
     rm -f "${output_dir}/gobuster_temp_"* 2>/dev/null || true
     rm -f "${output_dir}/katana_temp_"* 2>/dev/null || true
     rm -f "${output_dir}/tmp_"* 2>/dev/null || true
@@ -194,7 +183,6 @@ cleanup() {
     echo "[*] Cleanup completed"
 }
 
-# Gelişmiş lock mekanizması
 check_lock() {
     local lock_file="$1"
     local max_age=${2:-$MAX_TIMEOUT}
@@ -226,7 +214,6 @@ remove_lock() {
     rm -f "$lock_file"
 }
 
-# Resume kontrolü için fonksiyon
 check_resume() {
     local output_file="$1"
     local min_size="$2"  # Minimum dosya boyutu (byte)
@@ -250,7 +237,6 @@ check_resume() {
     return 1
 }
 
-# Gelişmiş subdomain enumeration
 do_subdomain_enum() {
     local domain="$1"
     local output_dir="$2"
@@ -276,7 +262,6 @@ do_subdomain_enum() {
     
     while [ $retry_count -lt $MAX_RETRIES ]; do
         {
-            # Sıralı subdomain enumeration
             subfinder -d "$domain" -rL dns-resolvers.txt -recursive -o "${output_dir}/subdomains_subfinder" 
             echo "subfinder completed"
             sleep 10 #
@@ -312,7 +297,6 @@ do_subdomain_enum() {
     fi
 }
 
-# HTTP probe fonksiyonu
 do_http_probe() {
     local output_dir="$1"
     local force_rescan="${2:-false}"
@@ -320,13 +304,11 @@ do_http_probe() {
     local final_output="${output_dir}/httpx"
     local retry_count=0
     
-    # Resume kontrolü
     if check_resume "$final_output" 50 "$force_rescan"; then
         echo "[+] Using existing HTTP probe results from $final_output"
         return 0
     fi
     
-    # Subdomain dosyasını kontrol et
     if ! [ -f "${output_dir}/subdomains" ]; then
         echo "[-] Subdomain file not found"
         return 1
@@ -367,7 +349,6 @@ do_http_probe() {
     fi
 }
 
-# Wayback URL toplama fonksiyonu
 do_wayback() {
     local output_dir="$1"
     local force_rescan="${2:-false}"
@@ -375,13 +356,11 @@ do_wayback() {
     local final_output="${output_dir}/waybacksorted"
     local retry_count=0
     
-    # Resume kontrolü
     if check_resume "$final_output" 100 "$force_rescan"; then
         echo "[+] Using existing wayback results from $final_output"
         return 0
     fi
     
-    # Subdomain dosyasını kontrol et
     if ! [ -f "${output_dir}/subdomains" ]; then
         echo "[-] Subdomain file not found"
         return 1
@@ -418,7 +397,6 @@ do_wayback() {
     fi
 }
 
-# GF pattern matching fonksiyonu
 do_gf_patterns() {
     local domain="$1"
     local output_dir="$2"
@@ -427,7 +405,6 @@ do_gf_patterns() {
     local lock_file="${output_dir}/gf.lock"
     local final_output="${output_dir}/gfcikti"
     
-    # Resume kontrolü
     if check_resume "$final_output" 50 "$force_rescan"; then
         echo "[+] Using existing pattern matching results from $final_output"
         return 0
@@ -442,25 +419,22 @@ do_gf_patterns() {
     
     patterns=("ssrf" "rce" "redirect" "sqli" "lfi" "ssti" "xss" "interestingEXT" "debug_logic" "idor" "interestingparams"  "interestingsubs")
     
-    # Çıktı dosyasını temizle/oluştur
     : >> "${output_dir}/gfcikti"
 
     for pattern in "${patterns[@]}"; do
         echo "[+] Scanning for $pattern in $domain..."
-        if [ -f "${output_dir}/waybacksorted_deduped" ]; then
+        if [ -f "${output_dir}/AssetListsDeduped" ]; then
           
             
-            cat "${output_dir}/waybacksorted_deduped" | \
+            cat "${output_dir}/AssetListsDeduped" | \
                 gf "$pattern" > "${output_dir}/gfcikti_$pattern" 
         fi
     done
-    # Sonuçları birleştir
     cat "${output_dir}/gfcikti_"* > "${output_dir}/gfcikti"
     echo "[+] Pattern matching completed"
     remove_lock "$lock_file"
 }
 
-# Nuclei taramaları fonksiyonu
 do_nuclei_scans() {
     local domain="$1"
     local output_dir="$2"
@@ -470,7 +444,6 @@ do_nuclei_scans() {
     local httpx_output="${output_dir}/nucleihttpx"
     local subs_output="${output_dir}/nucleisubs"
     
-    # Resume kontrolü - tüm çıktılar için kontrol
     local resume=true
     if ! check_resume "$dast_output" 50 "$force_rescan"; then
         resume=false
@@ -495,7 +468,6 @@ do_nuclei_scans() {
     create_lock "$lock_file"
     echo "[+] Starting Nuclei scans..."
     
-    # DAST taraması (GF sonuçları üzerinde)
     if [ -f "${output_dir}/gfcikti" ]; then
         echo "[+] Running Nuclei DAST scan on pattern matches..."
         nuclei -list "${output_dir}/gfcikti" \
@@ -504,7 +476,6 @@ do_nuclei_scans() {
                -o "${output_dir}/fuzzing_dast" || true
     fi
     
-    # HTTP endpoint taraması
     if [ -f "${output_dir}/httpx" ]; then
         echo "[+] Running Nuclei scan on live HTTP endpoints..."
         nuclei -l "${output_dir}/httpx" \
@@ -512,7 +483,6 @@ do_nuclei_scans() {
                -o "${output_dir}/nucleihttpx" || true
     fi
     
-    # Subdomain taraması
     if [ -f "${output_dir}/subdomains" ]; then
         echo "[+] Running Nuclei scan on subdomains..."
         nuclei -l "${output_dir}/subdomains" \
@@ -524,7 +494,6 @@ do_nuclei_scans() {
     echo "[+] Nuclei scans completed"
 }
 
-# Directory scanning fonksiyonu
 do_directory_scan() {
     local output_dir="$1"
     local force_rescan="${2:-false}"
@@ -532,7 +501,6 @@ do_directory_scan() {
     local final_output="${output_dir}/gobuster_results"
     local retry_count=0
     
-    # Resume kontrolü
     if check_resume "$final_output" 100 "$force_rescan"; then
         echo "[+] Using existing directory scan results from $final_output"
         return 0
@@ -546,7 +514,6 @@ do_directory_scan() {
     create_lock "$lock_file"
     echo "[+] Starting directory scanning with gobuster..."
     
-    # Geçici dosya oluştur
     local temp_results="${output_dir}/gobuster_temp_results"
     : > "$temp_results"
     
@@ -584,7 +551,6 @@ do_directory_scan() {
     remove_lock "$lock_file"
 }
 
-# Katana crawling fonksiyonu
 do_katana_crawl() {
     local output_dir="$1"
     local proxy="$2"
@@ -593,7 +559,6 @@ do_katana_crawl() {
     local final_output="${output_dir}/katana_results"
     local retry_count=0
     
-    # Resume kontrolü
     if check_resume "$final_output" 100 "$force_rescan"; then
         echo "[+] Using existing Katana results from $final_output"
         return 0
@@ -607,7 +572,6 @@ do_katana_crawl() {
     create_lock "$lock_file"
     echo "[+] Starting Katana crawling..."
     
-    # Geçici dosya oluştur
     local temp_results="${output_dir}/katana_temp_results"
     : > "$temp_results"
     
@@ -650,18 +614,15 @@ do_katana_crawl() {
 
 
 
-# Sonuçları birleştirme fonksiyonu
 merge_results() {
     local output_dir="$1"
     local domain="$2"
     
     echo "[+] Merging all results for $domain..."
     
-    # Sonuç dizini oluştur
     local merged_dir="${output_dir}/merged_results"
     mkdir -p "$merged_dir"
     
-    # Tüm URL'leri birleştir
     {
         [ -f "${output_dir}/httpx" ] && cat "${output_dir}/httpx"
         [ -f "${output_dir}/waybacksorted" ] && cat "${output_dir}/waybacksorted"
@@ -669,7 +630,6 @@ merge_results() {
         [ -f "${output_dir}/gobuster_results" ] && cat "${output_dir}/gobuster_results"
     } | sort -u > "${merged_dir}/all_urls.txt"
     
-    # Tüm güvenlik bulgularını birleştir
     {
         [ -f "${output_dir}/nucleihttpx" ] && cat "${output_dir}/nucleihttpx"
         [ -f "${output_dir}/nucleisubs" ] && cat "${output_dir}/nucleisubs"
@@ -677,7 +637,6 @@ merge_results() {
         [ -f "${output_dir}/gfcikti" ] && cat "${output_dir}/gfcikti"
     } > "${merged_dir}/all_findings.txt"
     
-    # Özet rapor oluştur
     {
         echo "# Scan Results for $domain"
         echo "## Summary"
@@ -699,13 +658,11 @@ merge_results() {
     echo "[+] Summary report created at: ${output_dir}/SUMMARY.md"
 }
 
-# Ana tarama fonksiyonu
 scan_domain() {
     local domain="$1"
     local proxy="$2"
     local output_dir="${domain}.monascanner"
     
-    # Dizin kontrolü ve oluşturma
     if [ -d "$output_dir" ] && [ "$FORCE_RESCAN" = false ]; then
         echo "[*] Found existing scan directory: $output_dir"
         echo "[*] Using existing results where available (use --force-rescan to ignore)"
@@ -718,7 +675,6 @@ scan_domain() {
     echo "[+] Starting comprehensive scan for domain: $domain"
     echo "[+] Output directory: $output_dir"
     
-    # Subdomain enumeration
     if [ "$DO_SUBDOMAIN" = true ]; then
         echo "[+] Starting subdomain enumeration..."
         if ! do_subdomain_enum "$domain" "$output_dir" "$FORCE_RESCAN"; then
@@ -726,9 +682,9 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping subdomain enumeration (--skip-subdomain specified)"
+        echo "$domain" > "${output_dir}/subdomains"
     fi
-    
-    # HTTP probe
+
     if [ "$DO_HTTP" = true ]; then
         echo "[+] Starting HTTP probe..."
         if ! do_http_probe "$output_dir" "$FORCE_RESCAN"; then
@@ -736,9 +692,9 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping HTTP probe (--skip-http specified)"
+        cat "${output_dir}/subdomains" > "${output_dir}/httpx"
     fi
-    
-    # Wayback
+
     if [ "$DO_WAYBACK" = true ]; then
         echo "[+] Starting wayback URL collection..."
         if ! do_wayback "$output_dir" "$FORCE_RESCAN"; then
@@ -746,9 +702,9 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping wayback collection (--skip-wayback specified)"
+        cat "${output_dir}/httpx" > "${output_dir}/waybacksorted"
     fi
-    
-    # Directory scanning
+
     if [ "$DO_DIRB" = true ]; then
         echo "[+] Starting directory scanning..."
         if ! do_directory_scan "$output_dir" "$FORCE_RESCAN"; then
@@ -756,8 +712,9 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping directory scanning (--skip-dirb specified)"
+        cat "${output_dir}/httpx" > "${output_dir}/gobuster_results"
     fi
-        # Katana crawling
+
     if [ "$DO_CRAWL" = true ]; then
         echo "[+] Starting Katana crawling..."
         if ! do_katana_crawl "$output_dir" "$proxy" "$FORCE_RESCAN"; then
@@ -765,17 +722,16 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping Katana crawling (--skip-crawl specified)"
+        cat "${output_dir}/httpx" > "${output_dir}/katana_results"
     fi
-   
-    cat "${output_dir}/waybacksorted" >> "${output_dir}/temp_urls_for_gf"
-    cat "${output_dir}/katana_results" >>"${output_dir}/temp_urls_for_gf"
-    cat "${output_dir}/gobuster_results" >>"${output_dir}/temp_urls_for_gf"
-    cat "${output_dir}/temp_urls_for_gf" | sort -u > "${output_dir}/waybacksortedcombined"
-    echo "[+] Combined URLs from wayback, katana, and gobuster into ${output_dir}/waybacksortedcombined"
-    cat "${output_dir}/waybacksortedcombined" |python3 urldeduper.py --blacklist  png,pdf,jpeg,jpg,ico,tiff,woff2,woff,tff,svg,css,gif,webp > "${output_dir}/waybacksorted_deduped"
-    
 
-    # GF patterns
+    [ -f "${output_dir}/waybacksorted" ] && cat "${output_dir}/waybacksorted" >> "${output_dir}/temp_urls_for_gf"
+    [ -f "${output_dir}/katana_results" ] && cat "${output_dir}/katana_results" >> "${output_dir}/temp_urls_for_gf"
+    [ -f "${output_dir}/gobuster_results" ] && cat "${output_dir}/gobuster_results" >> "${output_dir}/temp_urls_for_gf"
+    [ -f "${output_dir}/temp_urls_for_gf" ] && cat "${output_dir}/temp_urls_for_gf" | sort -u > "${output_dir}/AssetLists"
+    echo "[+] Combined URLs from wayback, katana, and gobuster into ${output_dir}/AssetLists"
+    [ -f "${output_dir}/AssetLists" ] && cat "${output_dir}/AssetLists" | python3 urldeduper.py --blacklist png,pdf,jpeg,jpg,ico,tiff,woff2,woff,tff,svg,css,gif,webp > "${output_dir}/AssetListsDeduped"
+
     if [ "$DO_GF" = true ]; then
         echo "[+] Starting pattern matching..."
         if [ "$DO_BURP" = true ]; then
@@ -785,33 +741,30 @@ scan_domain() {
         fi
     else
         echo "[*] Skipping pattern matching --skip-gf specified"
+        cat "${output_dir}/httpx" > "${output_dir}/gfcikti"
     fi
-    
 
-    
-    # Nuclei taramaları
     if [ "$DO_NUCLEI" = true ]; then
         echo "[+] Starting Nuclei scans..."
         echo "[*] Checking required files for Nuclei scans..."
-        
-        # Gerekli dosyaların varlığını kontrol et
+
         local can_run_nuclei=false
-        
+
         if [ -f "${output_dir}/gfcikti" ]; then
             echo "[*] Found GF output file for DAST scan"
             can_run_nuclei=true
         fi
-        
+
         if [ -f "${output_dir}/httpx" ]; then
             echo "[*] Found HTTP endpoints file"
             can_run_nuclei=true
         fi
-        
+
         if [ -f "${output_dir}/subdomains" ]; then
             echo "[*] Found subdomains file"
             can_run_nuclei=true
         fi
-        
+
         if [ "$can_run_nuclei" = true ]; then
             if ! do_nuclei_scans "$domain" "$output_dir" "$FORCE_RESCAN"; then
                 echo "[-] Nuclei scans failed, but continuing..."
@@ -822,7 +775,6 @@ scan_domain() {
     else
         echo "[*] Skipping Nuclei scans (--skip-nuclei specified)"
     fi
-    
 }
 
 check_requirements() {
@@ -869,7 +821,6 @@ check_requirements() {
         missing_tools+=("seclists")
     fi
 
-    # GF patterns kontrolü
     local gf_dir="$HOME/.gf"
     if [ ! -d "$gf_dir" ] || [ -z "$(ls -A "$gf_dir"/*.json 2>/dev/null)" ]; then
         echo "[-] Missing GF patterns"
